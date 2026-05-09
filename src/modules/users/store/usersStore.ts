@@ -22,7 +22,7 @@ const defaultFilters: UsersListFilters = {
   tags: "",
   date_from: "",
   date_to: "",
-  sort: "created_at",
+  sort: "last_activity",
   order: "desc",
 };
 
@@ -68,6 +68,8 @@ interface UsersUiState {
   selectedIds: Set<string>;
   detailUserId: string | null;
   focusedUserId: string | null;
+  quickActionsUserId: string | null;
+  analyticsDrawerUserId: string | null;
   pageSize: number;
   contextRailCollapsed: boolean;
   workspaceTab: "operations" | "analytics";
@@ -80,6 +82,8 @@ interface UsersUiState {
   resetFilters: () => void;
   setDetailUserId: (id: string | null) => void;
   setFocusedUserId: (id: string | null) => void;
+  setQuickActionsUserId: (id: string | null) => void;
+  setAnalyticsDrawerUserId: (id: string | null) => void;
   toggleSelect: (id: string) => void;
   clearSelection: () => void;
   setPageSize: (n: number) => void;
@@ -99,6 +103,8 @@ export const useUsersStore = create<UsersUiState>((set, get) => ({
   selectedIds: new Set(),
   detailUserId: null,
   focusedUserId: null,
+  quickActionsUserId: null,
+  analyticsDrawerUserId: null,
   pageSize: 50,
   contextRailCollapsed: false,
   workspaceTab: "operations",
@@ -115,6 +121,8 @@ export const useUsersStore = create<UsersUiState>((set, get) => ({
       focusedUserId: detailUserId ?? s.focusedUserId,
     })),
   setFocusedUserId: (focusedUserId) => set({ focusedUserId }),
+  setQuickActionsUserId: (quickActionsUserId) => set({ quickActionsUserId }),
+  setAnalyticsDrawerUserId: (analyticsDrawerUserId) => set({ analyticsDrawerUserId }),
   toggleSelect: (id) => {
     const next = new Set(get().selectedIds);
     if (next.has(id)) {

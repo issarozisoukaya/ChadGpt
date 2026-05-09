@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn, formatNumber, getPlanColor, getStatusColor } from "@/lib/utils";
 import { useUsersStore } from "../../store/usersStore";
-import { formatRelative, flagCountryEmoji } from "../../utils/userFormatters";
+import { formatRelative, flagCountryEmoji, maskEmail, maskPhone } from "../../utils/userFormatters";
 import {
   useUserDetail360,
   useUserActivity,
@@ -32,6 +32,8 @@ import {
   useUserNoteMutation,
 } from "../../hooks/useUsersModule";
 import { adminApi } from "@/lib/api/client";
+import { supabaseAdminUsers } from "@/lib/api/supabase-admin-users";
+import { getUsersDataSource } from "@/lib/users-data-source";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useConversations } from "@/hooks/useAdminData";
@@ -49,15 +51,24 @@ export function UserDetailsPanel() {
   const activityQ = useUserActivity(detailUserId);
   const tagMut = useUserTagMutations(detailUserId);
   const noteMut = useUserNoteMutation(detailUserId);
-  const convQ = useConversations({ user_id: detailUserId ?? undefined, page: 1, page_size: 50, enabled: !!detailUserId });
+  const convQ = useConversations({
+    user_id: detailUserId ?? undefined,
+    page: 1,
+    page_size: 50,
+    enabled: !!detailUserId && getUsersDataSource() !== "supabase",
+  });
   const qc = useQueryClient();
   const [noteDraft, setNoteDraft] = useState("");
   const [tagDraft, setTagDraft] = useState("");
   const [dangerReason, setDangerReason] = useState("");
   const [dangerConfirm, setDangerConfirm] = useState("");
+  const [piiReveal, setPiiReveal] = useState(false);
 
   const banMut = useMutation({
-    mutationFn: () => adminApi.users.ban(detailUserId!, dangerReason || "Action admin", "permanent"),
+    mutationFn: () =>
+      getUsersDataSource() === "supabase"
+        ? supabaseAdminUsers.ban(detailUserId!, dangerReason || "Action admin")
+        : adminApi.users.ban(detailUserId!, dangerReason || "Action admin", "permanent"),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["user", "360", detailUserId] });
@@ -68,7 +79,10 @@ export function UserDetailsPanel() {
   });
 
   const delMut = useMutation({
-    mutationFn: () => adminApi.users.deleteData(detailUserId!),
+    mutationFn: () =>
+      getUsersDataSource() === "supabase"
+        ? supabaseAdminUsers.deleteData(detailUserId!)
+        : adminApi.users.deleteData(detailUserId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       setDetailUserId(null);
@@ -124,6 +138,7 @@ export function UserDetailsPanel() {
           onClick={() => setDetailUserId(null)}
         />
         <motion.aside
+          key={detailUserId ?? "closed"}
           role="dialog"
           aria-modal="true"
           aria-labelledby="user-details-title"
@@ -149,7 +164,14 @@ export function UserDetailsPanel() {
                   <h2 id="user-details-title" className="truncate text-lg font-semibold text-neutral-900 dark:text-white">
                     {isLoading ? "…" : String(user.full_name || "Utilisateur")}
                   </h2>
-                  <p className="truncate text-sm text-neutral-500">{String(user.email || "")}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm text-neutral-500">
+                      {piiReveal ? String(user.email || "") : maskEmail(String(user.email || ""))}
+                    </p>
+                    <Button variant="ghost" size="xs" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => setPiiReveal((v) => !v)}>
+                      {piiReveal ? "Masquer" : "Révéler"}
+                    </Button>
+                  </div>
                   <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
                     <span aria-hidden>{flagCountryEmoji(user.country_code as string)}</span>
                     {String(user.country_code || "—")} ·{" "}
@@ -257,17 +279,28 @@ export function UserDetailsPanel() {
                       <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
                         <CreditCard className="h-3.5 w-3.5" /> Abonnement & facturation
                       </p>
-                      <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-                        Branchez Stripe / ledger interne pour afficher MRR, factures et moyens de paiement. Les champs{" "}
-                        <code className="text-xs">billing_*</code> peuvent être exposés par l’API <code className="text-xs">/admin/users/:id</code>.
-                      </p>
+                      <div className="mt-3 space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
+                        <p>
+                          Téléphone :{" "}
+                          <strong>{piiReveal ? String(user.phone ?? "—") : maskPhone(String(user.phone ?? ""))}</strong>
+                        </p>
+                        <p className="text-xs text-neutral-500">
+                          Revenus / abonnement : utilisez les colonnes <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">subscription_*</code>,{" "}
+                          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">user_payments</code> lorsque le schéma Supabase est présent.
+                        </p>
+                      </div>
                     </Card>
                   </div>
                 )}
               </Tabs.Content>
 
               <Tabs.Content value="conversations" className="p-4 outline-none">
-                {convQ.isLoading ? (
+                {getUsersDataSource() === "supabase" ? (
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Fil des conversations non branché sur Supabase dans ce module : utilisez l’API REST (
+                    <code className="rounded bg-neutral-100 px-1 text-xs dark:bg-slate-800">/admin/conversations</code>) ou ajoutez une vue dédiée.
+                  </p>
+                ) : convQ.isLoading ? (
                   <p className="text-sm text-neutral-500">Chargement des conversations…</p>
                 ) : (
                   <ul className="space-y-2" aria-label="Conversations">
@@ -303,15 +336,18 @@ export function UserDetailsPanel() {
                     {activityQ.isLoading ? (
                       <li className="text-neutral-500">Chargement…</li>
                     ) : (
-                      (activityQ.data?.events ?? []).map((ev, i) => (
-                        <li key={i} className="flex gap-2 rounded-lg border border-neutral-100 px-2 py-2 dark:border-slate-800">
-                          <Shield className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" aria-hidden />
-                          <div>
-                            <p className="font-medium text-neutral-800 dark:text-neutral-100">{String(ev.title)}</p>
-                            <p className="text-xs text-neutral-500">{formatRelative(ev.at as string)}</p>
-                          </div>
-                        </li>
-                      ))
+                      (activityQ.data?.events ?? []).map((ev, i) => {
+                        const row = ev as Record<string, unknown>;
+                        return (
+                          <li key={i} className="flex gap-2 rounded-lg border border-neutral-100 px-2 py-2 dark:border-slate-800">
+                            <Shield className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" aria-hidden />
+                            <div>
+                              <p className="font-medium text-neutral-800 dark:text-neutral-100">{String(row.title)}</p>
+                              <p className="text-xs text-neutral-500">{formatRelative(row.at as string)}</p>
+                            </div>
+                          </li>
+                        );
+                      })
                     )}
                   </ul>
                 </Card>
@@ -335,7 +371,7 @@ export function UserDetailsPanel() {
                     Santé : <strong>{String(predictions.health_label ?? scores.health_label ?? "—")}</strong>
                   </p>
                   <p className="text-neutral-600 dark:text-neutral-400">
-                    LTV estimée : <strong>{String(predictions.ltv_estimate_usd ?? "—")} USD</strong>
+                    Valeur estimée : <strong>{String(predictions.ltv_estimate_usd ?? "—")}</strong>
                   </p>
                   <p className="text-xs text-neutral-500">
                     Modèle : <code>{String(predictions.model_version ?? "heuristic-v1")}</code> — brancher votre scoring ML pour churn / upsell.

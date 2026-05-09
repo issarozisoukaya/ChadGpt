@@ -17,17 +17,27 @@ import {
   CheckCircle2,
   Circle,
   Copy,
+  Zap,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatNumber, getPlanColor, getStatusColor } from "@/lib/utils";
 import { useUsersStore, type UsersColumnId, DEFAULT_COLUMN_IDS } from "../store/usersStore";
-import { activityTone, flagCountryEmoji, formatRelative } from "../utils/userFormatters";
+import { activityTone, flagCountryEmoji, formatRelative, maskEmail } from "../utils/userFormatters";
 import { parseEngagementSeries } from "../utils/engagementSeries";
 import { UsersAnalyticsBoard } from "./UsersAnalyticsBoard";
 import { toast } from "sonner";
 
-type SortField = "email" | "plan" | "total_tokens_used" | "requests_today" | "created_at" | "risk_score";
+type SortField =
+  | "email"
+  | "plan"
+  | "total_tokens_used"
+  | "requests_today"
+  | "created_at"
+  | "risk_score"
+  | "last_activity";
 
 interface UsersListProps {
   users: Array<Record<string, unknown>>;
@@ -84,11 +94,25 @@ export function UsersList({
   const columnVisibility = useUsersStore((s) => s.columnVisibility);
   const setColumnVisible = useUsersStore((s) => s.setColumnVisible);
   const resetColumnLayout = useUsersStore((s) => s.resetColumnLayout);
+  const pageSizeStore = useUsersStore((s) => s.pageSize);
+  const setQuickActionsUserId = useUsersStore((s) => s.setQuickActionsUserId);
+  const setAnalyticsDrawerUserId = useUsersStore((s) => s.setAnalyticsDrawerUserId);
+
+  const [revealedEmailIds, setRevealedEmailIds] = useState<Set<string>>(() => new Set());
+  const toggleEmailReveal = (id: string) => {
+    setRevealedEmailIds((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
 
   const parentRef = useRef<HTMLDivElement>(null);
   const rowHeight = viewMode === "compact" ? 40 : 56;
   const [colMenuOpen, setColMenuOpen] = useState(false);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is intentional for large tables
   const virtualizer = useVirtualizer({
     count: users.length,
     getScrollElement: () => parentRef.current,
@@ -134,7 +158,7 @@ export function UsersList({
     { id: "sparkline", label: "7j (logs)", sort: null },
     { id: "geo", label: "Geo", sort: null },
     { id: "created", label: "Inscription", sort: "created_at" },
-    { id: "activity", label: "Activité", sort: null },
+    { id: "activity", label: "Activité", sort: "last_activity" },
     { id: "actions", label: "", sort: null },
   ];
 
@@ -261,7 +285,29 @@ export function UsersList({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-neutral-900 dark:text-white">{String(u.full_name || "—")}</p>
-                        <p className="truncate text-xs text-neutral-500">{String(u.email || "")}</p>
+                        <div className="flex min-w-0 items-center gap-1">
+                          <p className="truncate text-xs text-neutral-500">
+                            {revealedEmailIds.has(id) ? String(u.email || "") : maskEmail(String(u.email || ""))}
+                          </p>
+                          <button
+                            type="button"
+                            className="shrink-0 text-[10px] font-medium text-violet-600 hover:underline dark:text-violet-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleEmailReveal(id);
+                            }}
+                          >
+                            {revealedEmailIds.has(id) ? (
+                              <>
+                                <EyeOff className="inline h-3 w-3 align-middle" aria-hidden /> Masquer
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="inline h-3 w-3 align-middle" aria-hidden /> Afficher
+                              </>
+                            )}
+                          </button>
+                        </div>
                         <div className="mt-2 flex flex-wrap gap-1">
                           <Badge className={getPlanColor(String(u.plan))}>{String(u.plan)}</Badge>
                           <Badge className={getStatusColor(String(u.status))} size="sm">
@@ -466,7 +512,23 @@ export function UsersList({
                                       </span>
                                       <span className="min-w-0">
                                         <span className="block truncate font-medium text-neutral-900 dark:text-white">{String(u.full_name || "—")}</span>
-                                        <span className="block truncate text-xs text-neutral-500">{String(u.email || "")}</span>
+                                        <span className="flex min-w-0 items-center gap-1">
+                                          <span className="block truncate text-xs text-neutral-500">
+                                            {revealedEmailIds.has(id)
+                                              ? String(u.email || "")
+                                              : maskEmail(String(u.email || ""))}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            className="shrink-0 text-[10px] font-medium text-violet-600 hover:underline dark:text-violet-400"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleEmailReveal(id);
+                                            }}
+                                          >
+                                            {revealedEmailIds.has(id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                          </button>
+                                        </span>
                                       </span>
                                     </div>
                                   </td>
@@ -549,7 +611,31 @@ export function UsersList({
                                     className="sticky right-0 z-10 bg-white/90 p-2 backdrop-blur dark:bg-slate-950/90"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <div className="flex justify-end">
+                                    <div className="flex justify-end gap-0.5">
+                                      <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        className="h-8 w-8 rounded-lg p-0"
+                                        title="Actions rapides"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setQuickActionsUserId(id);
+                                        }}
+                                      >
+                                        <Zap className="h-4 w-4 text-amber-500" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        className="h-8 w-8 rounded-lg p-0"
+                                        title="Analytics"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setAnalyticsDrawerUserId(id);
+                                        }}
+                                      >
+                                        <BarChart3 className="h-4 w-4 text-violet-500" />
+                                      </Button>
                                       <Button variant="ghost" size="xs" className="h-8 w-8 rounded-lg p-0" onClick={() => setDetailUserId(id)} title="Fiche">
                                         <MoreHorizontal className="h-4 w-4" />
                                       </Button>
@@ -576,7 +662,14 @@ export function UsersList({
             Précédent
           </Button>
           <span className="text-xs text-neutral-500">
-            Page {page} / {Math.max(1, totalPages)}
+            {total > 0 ? (
+              <>
+                {(page - 1) * pageSizeStore + 1}–{Math.min((page - 1) * pageSizeStore + users.length, total)} sur{" "}
+                {total.toLocaleString("fr-FR")} · page {page}/{Math.max(1, totalPages)}
+              </>
+            ) : (
+              <>Page {page}</>
+            )}
           </span>
           <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
             Suivant

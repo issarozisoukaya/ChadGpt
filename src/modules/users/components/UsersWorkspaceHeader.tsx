@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/stores/uiStore";
 import { useUsersStore } from "../store/usersStore";
-import { adminApi } from "@/lib/api/client";
+import { downloadUsersExport } from "../utils/usersExport";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -38,6 +38,7 @@ export function UsersWorkspaceHeader({
   const setCommandOpen = useUIStore((s) => s.setCommandOpen);
   const workspaceTab = useUsersStore((s) => s.workspaceTab);
   const setWorkspaceTab = useUsersStore((s) => s.setWorkspaceTab);
+  const filters = useUsersStore((s) => s.filters);
   const [fs, setFs] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
@@ -53,27 +54,10 @@ export function UsersWorkspaceHeader({
 
   const exportFmt = async (format: "csv" | "json") => {
     try {
-      if (format === "csv") {
-        const blob = await adminApi.users.exportBlob("csv");
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `users_export_${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("Export CSV prêt");
-      } else {
-        const blob = await adminApi.users.exportBlob("json");
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `users_export_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("Export JSON prêt");
-      }
-    } catch {
-      toast.error("Export échoué — vérifiez l’API");
+      await downloadUsersExport(format, filters, false);
+      toast.success(`Export ${format.toUpperCase()} prêt`);
+    } catch (e) {
+      toast.error((e as Error)?.message ?? "Export échoué");
     }
   };
 

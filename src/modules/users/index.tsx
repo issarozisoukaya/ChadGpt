@@ -1,29 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search,
   RefreshCw,
   Filter,
-  Mail,
-  UserX,
   Sparkles,
   Users,
   Activity,
   TrendingUp,
   AlertCircle,
+  ShieldOff,
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
 import { useDashboardKpis } from "@/hooks/useAdminData";
-import { adminApi } from "@/lib/api/client";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/authStore";
+import { getUsersDataSource } from "@/lib/users-data-source";
 import { useUsersStore } from "./store/usersStore";
-import { useUsersModuleList } from "./hooks/useUsersModule";
+import { useUsersModuleList, useUsersSupabaseStats } from "./hooks/useUsersModule";
 import { AdvancedFiltersDrawer } from "./components/AdvancedFiltersDrawer";
 import { UsersList } from "./components/UsersList";
 import { UserDetailsPanel } from "./components/UserDetails/UserDetailsPanel";
@@ -32,9 +31,15 @@ import { UsersContextRail } from "./components/UsersContextRail";
 import { UsersCommandPalette } from "./components/UsersCommandPalette";
 import { UsersAnalyticsBoard } from "./components/UsersAnalyticsBoard";
 import { UsersGovernanceAndAI } from "./components/UsersGovernanceAndAI";
+import { UsersBulkActionsBar } from "./components/UsersBulkActionsBar";
+import { UserQuickActionsDrawer } from "./components/UserQuickActionsDrawer";
+import { UserAnalyticsDrawer } from "./components/UserAnalyticsDrawer";
+import { downloadUsersExport } from "./utils/usersExport";
 
 export default function UsersModule() {
+  const role = useAuthStore((s) => s.user?.role);
   const { data: kpiData } = useDashboardKpis();
+  const statsQ = useUsersSupabaseStats(role === "super_admin");
   const { data, isLoading, isError, error, refetch, page, setPage } = useUsersModuleList();
   const filters = useUsersStore((s) => s.filters);
   const setFilters = useUsersStore((s) => s.setFilters);
@@ -42,7 +47,6 @@ export default function UsersModule() {
   const pageSize = useUsersStore((s) => s.pageSize);
   const setPageSize = useUsersStore((s) => s.setPageSize);
   const selectedIds = useUsersStore((s) => s.selectedIds);
-  const clearSelection = useUsersStore((s) => s.clearSelection);
   const workspaceTab = useUsersStore((s) => s.workspaceTab);
 
   const [searchInput, setSearchInput] = useState(filters.search);
@@ -55,23 +59,38 @@ export default function UsersModule() {
   const users = data?.users ?? [];
   const pagination = data?.pagination;
   const stats = data?.stats as Record<string, number> | undefined;
-  const kpis = kpiData?.kpis as Record<string, number> | undefined;
-  const total = Number(pagination?.total ?? stats?.total_users ?? kpis?.total_users ?? 0);
+  const kpis = useMemo(() => {
+    const base = (kpiData?.kpis ?? {}) as Record<string, unknown>;
+    const fromSb = (statsQ.data?.kpis ?? {}) as Record<string, unknown>;
+    return { ...base, ...fromSb };
+  }, [kpiData?.kpis, statsQ.data?.kpis]);
+  const total = Number(pagination?.total ?? stats?.total_users ?? kpis?.total_users ?? 0) || 0;
+  const kpiNum = (k: string) => Number(kpis[k] ?? 0) || 0;
 
   const exportUsers = async () => {
     try {
-      const blob = await adminApi.users.exportBlob("csv");
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `users_export_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadUsersExport("csv", filters, false);
       toast.success("Export démarré");
-    } catch {
-      toast.error("Échec export");
+    } catch (e) {
+      toast.error((e as Error)?.message ?? "Échec export");
     }
   };
+
+  if (role !== "super_admin") {
+    return (
+      <Card padding="lg" className="max-w-lg border-amber-200/80 bg-amber-50/90 dark:border-amber-900/40 dark:bg-amber-950/40">
+        <div className="flex gap-3">
+          <ShieldOff className="h-10 w-10 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+          <div>
+            <p className="font-semibold text-amber-950 dark:text-amber-100">Accès refusé</p>
+            <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">
+              La gestion utilisateurs avancée est réservée aux <strong>super administrateurs</strong>.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="relative flex min-h-[calc(100vh-6rem)] flex-col gap-4 pb-8 xl:flex-row">
@@ -108,27 +127,27 @@ export default function UsersModule() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard
                 title="Total"
-                value={kpis?.total_users ?? total}
+                value={kpiNum("total_users") || total}
                 icon={<Users className="h-4 w-4" />}
                 className="border border-white/60 bg-white/70 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-900/60"
               />
               <StatCard
                 title="Actifs (mois)"
-                value={kpis?.active_users_month ?? 0}
+                value={kpiNum("active_users_month")}
                 icon={<Activity className="h-4 w-4" />}
                 iconColor="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                 className="border border-white/60 bg-white/70 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-900/60"
               />
               <StatCard
                 title="Nouveaux (mois)"
-                value={kpis?.new_users_month ?? 0}
+                value={kpiNum("new_users_month")}
                 icon={<TrendingUp className="h-4 w-4" />}
                 iconColor="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                 className="border border-white/60 bg-white/70 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-900/60"
               />
               <StatCard
                 title="Modération"
-                value={kpis?.moderation_pending ?? 0}
+                value={kpiNum("moderation_pending")}
                 icon={<AlertCircle className="h-4 w-4" />}
                 iconColor="bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
                 className="border border-white/60 bg-white/70 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-900/60"
@@ -142,8 +161,11 @@ export default function UsersModule() {
                 <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" aria-hidden />
                 <p className="text-sm font-medium text-violet-900 dark:text-violet-100">Automation & bulk</p>
                 <span className="text-xs text-violet-700/80 dark:text-violet-300/90">
-                  Workflows : <code className="rounded bg-white/60 px-1 dark:bg-slate-900/60">POST /admin/users/bulk</code>,{" "}
-                  <code className="rounded bg-white/60 px-1 dark:bg-slate-900/60">admin_webhooks</code>.
+                  Mode données :{" "}
+                  <code className="rounded bg-white/60 px-1 dark:bg-slate-900/60">
+                    {getUsersDataSource() === "supabase" ? "Supabase (route handlers)" : "API REST"}
+                  </code>
+                  .
                 </span>
               </div>
             </div>
@@ -194,7 +216,7 @@ export default function UsersModule() {
                       className={selectCls}
                       aria-label="Taille de page"
                     >
-                      {[10, 25, 50, 100, 250, 500].map((n) => (
+                      {[25, 50, 100, 200, 250, 500].map((n) => (
                         <option key={n} value={n}>
                           {n} / page
                         </option>
@@ -218,34 +240,7 @@ export default function UsersModule() {
                   </div>
                 </div>
 
-                {selectedIds.size > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-violet-200/60 bg-violet-50/90 p-3 dark:border-violet-500/25 dark:bg-violet-950/30"
-                  >
-                    <span className="text-sm font-medium text-violet-800 dark:text-violet-200">{selectedIds.size} sélectionné(s)</span>
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      icon={<Mail className="h-3 w-3" />}
-                      onClick={() => toast.info("Bulk email — brancher le fournisseur")}
-                    >
-                      Email
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="xs"
-                      icon={<UserX className="h-3 w-3" />}
-                      onClick={() => toast.info("Bulk suspend — utiliser l’API /admin/users/bulk")}
-                    >
-                      Suspendre
-                    </Button>
-                    <Button variant="ghost" size="xs" onClick={clearSelection}>
-                      Effacer
-                    </Button>
-                  </motion.div>
-                )}
+                <UsersBulkActionsBar />
 
                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Filtres rapides">
                   {["active", "inactive", "banned"].map((st) => (
@@ -271,7 +266,7 @@ export default function UsersModule() {
                 isLoading={isLoading}
                 total={total}
                 page={page}
-                totalPages={Math.max(1, pagination?.total_pages ?? 1)}
+                totalPages={Math.max(1, Number(pagination?.total_pages ?? 1) || 1)}
                 onPageChange={setPage}
               />
             </Card>
@@ -285,6 +280,8 @@ export default function UsersModule() {
 
       <AdvancedFiltersDrawer />
       <UserDetailsPanel />
+      <UserQuickActionsDrawer />
+      <UserAnalyticsDrawer />
     </div>
   );
 }
