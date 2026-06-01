@@ -150,8 +150,23 @@ export const adminApi = {
       const res = await apiClient.put(`/admin/users/${id}`, data);
       return unwrap<Record<string, unknown>>(res);
     },
-    ban: async (id: string, reason: string, duration = "permanent") => {
-      const res = await apiClient.post(`/admin/users/${id}/ban`, { reason, duration });
+    ban: async (
+      id: string,
+      reason: string,
+      duration = "permanent",
+      status: "suspended" | "banned" = "suspended",
+    ) => {
+      const res = await apiClient.post(`/admin/users/${id}/ban`, { reason, duration, status });
+      return unwrap<Record<string, unknown>>(res);
+    },
+    setStatus: async (id: string, status: "active" | "suspended" | "banned", reason?: string) => {
+      const res = await apiClient.patch(`/admin/users/${id}/status`, { status, reason });
+      return unwrap<Record<string, unknown>>(res);
+    },
+    reactivate: async (id: string, reason?: string) => {
+      const res = await apiClient.post(`/admin/users/${id}/reactivate`, null, {
+        params: reason ? { reason } : undefined,
+      });
       return unwrap<Record<string, unknown>>(res);
     },
     deleteData: async (id: string) => {

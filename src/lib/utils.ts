@@ -97,6 +97,7 @@ export function getStatusColor(status: string): string {
     active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
     inactive: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     banned: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    suspended: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
     churned: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
     pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
   };

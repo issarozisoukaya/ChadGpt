@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useCallback } from "react";
 import { Command, useCommandState } from "cmdk";
+import { DialogTitle, DialogDescription } from "@radix-ui/react-dialog";
 import { Search, Sparkles, Mail, Tag, Calendar, Hash } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
 import { useUsersStore } from "../store/usersStore";
@@ -86,6 +87,10 @@ export function UsersCommandPalette({ users }: UsersCommandPaletteProps) {
         "overflow-hidden outline-none"
       )}
     >
+      <DialogTitle className="sr-only">Recherche universelle utilisateurs</DialogTitle>
+      <DialogDescription className="sr-only">
+        Filtres, segments et accès rapide aux utilisateurs de la page courante.
+      </DialogDescription>
       <div className="flex items-center gap-2 border-b border-neutral-200/80 px-3 dark:border-slate-800">
         <Search className="h-4 w-4 shrink-0 text-violet-500" aria-hidden />
         <Command.Input

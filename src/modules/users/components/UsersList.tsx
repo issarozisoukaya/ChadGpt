@@ -163,11 +163,12 @@ export function UsersList({
   ];
 
   const kanbanBuckets = useMemo(() => {
-    const m: Record<string, typeof users> = { active: [], inactive: [], banned: [], other: [] };
+    const m: Record<string, typeof users> = { active: [], inactive: [], suspended: [], banned: [], other: [] };
     for (const u of users) {
       const st = String(u.status || "").toLowerCase();
       if (st === "active") m.active.push(u);
       else if (st === "inactive") m.inactive.push(u);
+      else if (st === "suspended") m.suspended.push(u);
       else if (st === "banned") m.banned.push(u);
       else m.other.push(u);
     }
@@ -332,6 +333,7 @@ export function UsersList({
             [
               ["active", "Actifs"],
               ["inactive", "Inactifs"],
+              ["suspended", "Suspendus"],
               ["banned", "Bannis"],
               ["other", "Autres"],
             ] as const

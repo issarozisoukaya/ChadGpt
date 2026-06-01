@@ -79,9 +79,9 @@ export function UsersAnalyticsBoard() {
 
       <Card className="overflow-hidden rounded-2xl border-neutral-200/80 bg-white/80 p-4 backdrop-blur-md dark:border-slate-700 dark:bg-slate-950/50">
         <p className="text-sm font-semibold text-neutral-900 dark:text-white">Tendance 30 jours</p>
-        <p className="text-xs text-neutral-500">Inscriptions / activité — données /admin/analytics/daily</p>
-        <div className="mt-4 h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+        <p className="text-xs text-neutral-500">Inscriptions / activité — /admin/analytics/daily</p>
+        <div className="mt-4 h-64 min-h-64 w-full min-w-0 shrink-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={256}>
             <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="u1" x1="0" y1="0" x2="0" y2="1">

@@ -253,7 +253,7 @@ export function UsersBulkActionsBar() {
                     onClick={() => {
                       if (!reason.trim()) return;
                       if (!confirm(`Suspendre définitivement (statut) ${count} compte(s) ? Seconde étape.`)) return;
-                      runBulk("set_status", { status: "suspended", reason });
+                      runBulk("suspend", { status: "suspended", reason });
                     }}
                   >
                     Confirmer suspension
@@ -282,7 +282,7 @@ export function UsersBulkActionsBar() {
                       if (!reason.trim()) return;
                       if (confirmBan.trim().toUpperCase() !== "BANNIR") return;
                       if (!confirm(`Dernière confirmation : bannir ${count} compte(s) ?`)) return;
-                      runBulk("ban", { reason });
+                      runBulk("ban", { reason, status: "banned" });
                     }}
                   >
                     Bannir la sélection

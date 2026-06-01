@@ -64,15 +64,47 @@ export function UserDetailsPanel() {
   const [dangerConfirm, setDangerConfirm] = useState("");
   const [piiReveal, setPiiReveal] = useState(false);
 
+  const isSupabase = getUsersDataSource() === "supabase";
+
+  const invalidateUser = () => {
+    qc.invalidateQueries({ queryKey: ["users"] });
+    qc.invalidateQueries({ queryKey: ["user", "360", detailUserId] });
+  };
+
+  const suspendMut = useMutation({
+    mutationFn: () =>
+      isSupabase
+        ? supabaseAdminUsers.ban(detailUserId!, dangerReason)
+        : adminApi.users.ban(detailUserId!, dangerReason, "permanent", "suspended"),
+    onSuccess: () => {
+      invalidateUser();
+      toast.success("Compte suspendu · l’app mobile sera bloquée sous ~30 s");
+      setDangerReason("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const banMut = useMutation({
     mutationFn: () =>
-      getUsersDataSource() === "supabase"
-        ? supabaseAdminUsers.ban(detailUserId!, dangerReason || "Action admin")
-        : adminApi.users.ban(detailUserId!, dangerReason || "Action admin", "permanent"),
+      isSupabase
+        ? supabaseAdminUsers.ban(detailUserId!, dangerReason)
+        : adminApi.users.ban(detailUserId!, dangerReason, "permanent", "banned"),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["users"] });
-      qc.invalidateQueries({ queryKey: ["user", "360", detailUserId] });
-      toast.success("Utilisateur suspendu · audit enregistré");
+      invalidateUser();
+      toast.success("Compte banni · notification push envoyée si FCM actif");
+      setDangerReason("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reactivateMut = useMutation({
+    mutationFn: () =>
+      isSupabase
+        ? adminApi.users.setStatus(detailUserId!, "active", dangerReason || undefined)
+        : adminApi.users.reactivate(detailUserId!, dangerReason || undefined),
+    onSuccess: () => {
+      invalidateUser();
+      toast.success("Compte réactivé · accès mobile restauré");
       setDangerReason("");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -99,6 +131,10 @@ export function UserDetailsPanel() {
   const tags = (data?.tags ?? []) as Array<{ tag: string }>;
   const notes = (data?.admin_notes ?? []) as Array<Record<string, unknown>>;
 
+  const accountStatus = String(user.status ?? "active").toLowerCase();
+  const isBlocked = accountStatus === "suspended" || accountStatus === "banned";
+  const statusReason = user.status_reason as string | undefined;
+
   const copyId = () => {
     const id = user.id as string;
     if (id) {
@@ -107,12 +143,12 @@ export function UserDetailsPanel() {
     }
   };
 
-  const onBan = () => {
+  const requireReason = () => {
     if (!dangerReason.trim()) {
       toast.error("La raison est obligatoire pour l’audit.");
-      return;
+      return false;
     }
-    banMut.mutate();
+    return true;
   };
   const onDelete = () => {
     if (dangerConfirm !== "SUPPRIMER") {
@@ -486,10 +522,45 @@ export function UserDetailsPanel() {
                       autoComplete="off"
                     />
                   </div>
+                  {isBlocked && (
+                    <p className="mt-3 rounded-lg bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                      Statut actuel : <strong>{accountStatus}</strong>
+                      {statusReason ? ` — ${statusReason}` : ""}
+                    </p>
+                  )}
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button variant="danger" size="sm" loading={banMut.isPending} disabled={!dangerReason.trim()} onClick={onBan}>
-                      Suspendre / bannir
-                    </Button>
+                    {isBlocked ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={reactivateMut.isPending}
+                        onClick={() => reactivateMut.mutate()}
+                      >
+                        Réactiver le compte
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          loading={suspendMut.isPending}
+                          disabled={!dangerReason.trim()}
+                          onClick={() => requireReason() && suspendMut.mutate()}
+                        >
+                          Suspendre
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-red-300 text-red-700 dark:border-red-800 dark:text-red-300"
+                          loading={banMut.isPending}
+                          disabled={!dangerReason.trim()}
+                          onClick={() => requireReason() && banMut.mutate()}
+                        >
+                          Bannir définitivement
+                        </Button>
+                      </>
+                    )}
                     <Button variant="outline" size="sm" loading={delMut.isPending} onClick={onDelete}>
                       Effacer données (RGPD)
                     </Button>

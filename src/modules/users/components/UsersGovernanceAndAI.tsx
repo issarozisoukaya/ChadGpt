@@ -72,14 +72,14 @@ export function UsersGovernanceAndAI() {
       if (eff.tags != null) merged.tags = String(eff.tags);
       setFilters(merged);
       toast.success(`${res.result_count.toLocaleString("fr-FR")} utilisateur(s) · ${res.latency_ms} ms`, {
-        description: res.notes ? String(res.notes) : `Filtres : ${JSON.stringify(res.parsed_filters)}`,
+        description: res.notes ? String(res.notes) : undefined,
       });
       setNlQuery("");
     } catch (e) {
       const fallback = nlQueryToFilters(q);
       if (fallback && Object.keys(fallback).length) {
         setFilters(fallback);
-        toast.message("API NL indisponible — heuristique locale appliquée", {
+        toast.message("Mode hors ligne — filtres appliqués localement", {
           description: (e as Error).message,
         });
         setNlQuery("");
@@ -106,7 +106,7 @@ export function UsersGovernanceAndAI() {
         ...prev,
         {
           role: "assistant",
-          text: `Erreur API assistant : ${(e as Error).message}. Vérifiez POST /admin/assistant/chat.`,
+          text: `Erreur : ${(e as Error).message}`,
         },
       ]);
     } finally {
@@ -119,64 +119,55 @@ export function UsersGovernanceAndAI() {
       <Card className="rounded-2xl border border-neutral-200/80 bg-white/80 p-4 backdrop-blur-md dark:border-slate-700 dark:bg-slate-950/50">
         <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-white">
           <Shield className="h-4 w-4 text-violet-500" />
-          Conservation des données & RGPD
+          RGPD & conservation
         </div>
-        <p className="mt-1 text-xs text-neutral-500">
-          Paramètres : clé <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">data_retention_policy</code> (migration 011). Tables :{" "}
-          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">user_gdpr_retention</code>,{" "}
-          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">admin_audit_log</code>.
-        </p>
         {isLoading ? (
-          <p className="mt-3 text-sm text-neutral-500">Chargement des paramètres…</p>
+          <p className="mt-3 text-sm text-neutral-500">Chargement…</p>
         ) : retention ? (
-          <ul className="mt-3 space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
-            <li>
-              <span className="text-neutral-500">Logs bruts (jours) :</span>{" "}
+          <ul className="mt-3 space-y-1.5 text-sm text-neutral-700 dark:text-neutral-300">
+            <li className="flex justify-between gap-2">
+              <span className="text-neutral-500">Logs bruts (j)</span>
               <strong>{String(retention.raw_usage_logs_days ?? "—")}</strong>
             </li>
-            <li>
-              <span className="text-neutral-500">Archivage inactifs après (j) :</span>{" "}
+            <li className="flex justify-between gap-2">
+              <span className="text-neutral-500">Archivage inactifs (j)</span>
               <strong>{String(retention.archive_inactive_after_days ?? "—")}</strong>
             </li>
-            <li>
-              <span className="text-neutral-500">Anonymisation post-archivage (j) :</span>{" "}
+            <li className="flex justify-between gap-2">
+              <span className="text-neutral-500">Anonymisation post-arch. (j)</span>
               <strong>{String(retention.anonymize_after_archive_days ?? "—")}</strong>
             </li>
-            <li>
-              <span className="text-neutral-500">Purge planifiée (cron) :</span>{" "}
+            <li className="flex justify-between gap-2">
+              <span className="text-neutral-500">Purge (cron)</span>
               <strong className="font-mono text-xs">{String(retention.scheduled_purge_cron ?? "—")}</strong>
             </li>
-            <li>
-              <span className="text-neutral-500">Anonymisation auto :</span>{" "}
+            <li className="flex justify-between gap-2">
+              <span className="text-neutral-500">Anonymisation auto</span>
               <strong>{String(retention.gdpr_auto_anonymize_enabled ?? false)}</strong>
             </li>
           </ul>
         ) : (
           <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
-            Exécutez <code className="text-xs">011_retention_ai_enriched_view.sql</code> pour créer la politique dans{" "}
-            <code className="text-xs">admin_settings</code>.
+            Paramètres absents — exécuter la migration <code className="text-xs">011_retention_ai_enriched_view.sql</code>.
           </p>
         )}
       </Card>
 
       <Card className="rounded-2xl border border-neutral-200/80 bg-white/80 p-4 backdrop-blur-md dark:border-slate-700 dark:bg-slate-950/50">
-        <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-white">
-          <Database className="h-4 w-4 text-cyan-500" />
-          Recherche augmentée (NL)
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-neutral-900 dark:text-white">
+          <span className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-cyan-500" />
+            Recherche NL
+          </span>
+          <span className="text-xs font-normal text-neutral-500">
+            NL {String(aiFlags?.nl_search_enabled ?? false)} · Insights {String(aiFlags?.insight_detection_enabled ?? false)}
+          </span>
         </div>
-        <p className="mt-1 text-xs text-neutral-500">
-          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">POST /admin/users/nl-search</code> · journal{" "}
-          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">admin_nl_search_log</code>.
-        </p>
-        <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-400">
-          NL activé (config) : <strong>{String(aiFlags?.nl_search_enabled ?? false)}</strong> · Insights :{" "}
-          <strong>{String(aiFlags?.insight_detection_enabled ?? false)}</strong>
-        </p>
         <div className="mt-3 flex gap-2">
           <Input
             value={nlQuery}
             onChange={(e) => setNlQuery(e.target.value)}
-            placeholder='Ex. « utilisateurs inactifs depuis 2 semaines », « enterprise France »'
+            placeholder="Ex. inactifs 2 semaines, enterprise France…"
             className="rounded-xl text-sm"
             aria-label="Recherche en langage naturel"
             onKeyDown={(e) => e.key === "Enter" && !nlBusy && applyNl()}
@@ -192,24 +183,21 @@ export function UsersGovernanceAndAI() {
             Appliquer
           </Button>
         </div>
-        <p className="mt-2 text-[11px] text-neutral-400">
-          Les filtres actuels de la grille sont fusionnés avec l’interprétation NL. Fallback local si l’API échoue.
-        </p>
       </Card>
 
       <Card className="rounded-2xl border border-neutral-200/80 bg-white/80 p-4 backdrop-blur-md dark:border-slate-700 dark:bg-slate-950/50 lg:col-span-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-white">
-          <Bot className="h-4 w-4 text-violet-500" />
-          Assistant admin
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-neutral-900 dark:text-white">
+          <span className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-violet-500" />
+            Assistant
+          </span>
+          <span className="text-xs font-normal text-neutral-500">
+            Activé : <strong className="text-neutral-700 dark:text-neutral-300">{String(aiFlags?.assistant_enabled ?? false)}</strong>
+          </span>
         </div>
-        <p className="mt-1 text-xs text-neutral-500">
-          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">POST /admin/assistant/chat</code> · KPIs via{" "}
-          <code className="rounded bg-neutral-100 px-1 dark:bg-slate-800">fn_dashboard_kpis</code> · activé (config) :{" "}
-          <strong>{String(aiFlags?.assistant_enabled ?? false)}</strong>
-        </p>
         <div className="mt-3 max-h-48 space-y-2 overflow-y-auto rounded-xl border border-neutral-200/60 bg-neutral-50/50 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/40">
           {assistantLog.length === 0 ? (
-            <p className="text-neutral-500">Posez une question sur les métriques, exports ou procédures de modération.</p>
+            <p className="text-neutral-500">Questions sur métriques, exports ou modération.</p>
           ) : (
             assistantLog.map((m, i) => (
               <div
@@ -230,7 +218,7 @@ export function UsersGovernanceAndAI() {
           <Input
             value={assistantInput}
             onChange={(e) => setAssistantInput(e.target.value)}
-            placeholder="Ex. Combien d’utilisateurs actifs ? Comment exporter les VIP ?"
+            placeholder="Ex. utilisateurs actifs ce mois-ci ?"
             className="rounded-xl text-sm"
             onKeyDown={(e) => e.key === "Enter" && !assistantBusy && void askAssistant()}
           />

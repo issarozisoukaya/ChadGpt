@@ -243,7 +243,7 @@ export default function UsersModule() {
                 <UsersBulkActionsBar />
 
                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Filtres rapides">
-                  {["active", "inactive", "banned"].map((st) => (
+                  {["active", "inactive", "suspended", "banned"].map((st) => (
                     <button
                       key={st}
                       type="button"
